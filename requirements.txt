@@ -1,0 +1,34 @@
+# ─────────────────────────────────────────────
+# Agent7 — Python Dependencies
+# ─────────────────────────────────────────────
+# Install with:
+#   python3 -m venv venv
+#   source venv/bin/activate
+#   pip install -r requirements.txt
+
+# ── Core agent framework ──────────────────────
+smolagents[litellm]         # agent loop, code execution, tool protocol
+ollama                      # Ollama Python client (local model communication)
+duckduckgo-search           # web search tool used by the agent
+
+# ── Web interface ─────────────────────────────
+fastapi                     # web framework
+uvicorn[standard]           # ASGI server to run FastAPI
+sse-starlette               # Server-Sent Events for real-time streaming
+jinja2                      # HTML templating (renders index.html)
+python-multipart            # required by FastAPI for form handling
+
+# ── File creation (agent output) ─────────────
+openpyxl                    # .xlsx spreadsheet creation
+python-docx                 # .docx Word document creation
+fpdf2                       # .pdf creation (lightweight)
+reportlab                   # .pdf creation (advanced, charts/tables)
+
+# ── Audio / MIDI ──────────────────────────────
+mido                        # MIDI file read/write
+python-rtmidi               # MIDI playback (requires libasound2-dev on Linux)
+
+# ── Data & ML (used by agent code tasks) ─────
+numpy
+pandas
+requests
