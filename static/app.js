@@ -20,7 +20,6 @@ const modelLabel     = document.getElementById('model-label');
 const factsCount     = document.getElementById('facts-count');
 const sessionsCount  = document.getElementById('sessions-count');
 const filesBadge     = document.getElementById('files-badge');
-const stopBtn        = document.getElementById('stop-btn');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let busy         = false;
@@ -61,7 +60,6 @@ async function sendMessage() {
   // Clear output panel for new task
   outputLines.innerHTML = '';
 
-  // Enable stop button immediately — don't wait for SSE confirmation
   setBusy(true);
 
   // Open SSE stream FIRST so we never miss the 'start' event
@@ -394,7 +392,6 @@ function setBusy(state) {
   busy = state;
   sendBtn.disabled   = state;
   chatInput.disabled = state;
-  stopBtn.disabled   = !state;
   typingIndicator.classList.toggle('visible', state);
   statusDot.classList.toggle('busy', state);
   statusText.textContent = state ? 'Working...' : 'Ready';
@@ -418,18 +415,6 @@ chatInput.addEventListener('keydown', (e) => {
 });
 
 sendBtn.addEventListener('click', sendMessage);
-
-stopBtn.addEventListener('click', async () => {
-  if (!busy) return;
-  // Close SSE stream immediately
-  if (eventSource) { eventSource.close(); eventSource = null; }
-  try {
-    await fetch('/api/stop', { method: 'POST' });
-  } catch(e) {}
-  appendMessage('agent', '⛔ Stopped.');
-  appendOutputLine('⛔ Killed by user.');
-  setBusy(false);
-});
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function scrollChat() {
