@@ -49,8 +49,8 @@
   /* ── Layout ── */
   .app {
     display: grid;
-    grid-template-rows: 48px 1fr;
-    grid-template-columns: 1fr 420px;
+    grid-template-rows: 48px 1fr 20vh;
+    grid-template-columns: 1fr;
     height: 100dvh;
     gap: 0;
   }
@@ -138,12 +138,10 @@
   .chat-panel {
     display: flex;
     flex-direction: column;
-    border-right: 1px solid var(--border);
     background: var(--bg);
     overflow: hidden;
-    /* Keep panel within viewport so input never goes off screen */
     min-height: 0;
-    position: relative;
+    border-bottom: 1px solid var(--border);
   }
 
   .chat-messages {
@@ -377,6 +375,8 @@
     flex-direction: column;
     background: var(--bg2);
     overflow: hidden;
+    border-top: 1px solid var(--border);
+    min-height: 0;
   }
 
   /* ── Tabs ── */
@@ -619,20 +619,6 @@
 
   /* ── Mobile overrides ── */
   @media (max-width: 768px) {
-    .app {
-      grid-template-columns: 1fr;
-      grid-template-rows: 48px 1fr 48px;
-    }
-
-    .right-panel {
-      display: none;  /* hide side panel on small screens */
-    }
-
-    .chat-input-area {
-      /* Extra breathing room on small screens */
-      padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
-    }
-
     .chat-input {
       font-size: 16px; /* prevents iOS auto-zoom on focus */
     }
