@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Agent7</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
@@ -42,6 +42,8 @@
     font-family: var(--font-mono);
     font-size: 13px;
     overflow: hidden;
+    /* Prevent content hiding behind OS navigation on mobile */
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* ── Layout ── */
@@ -49,7 +51,7 @@
     display: grid;
     grid-template-rows: 48px 1fr;
     grid-template-columns: 1fr 420px;
-    height: 100vh;
+    height: 100dvh;
     gap: 0;
   }
 
@@ -302,11 +304,16 @@
   /* ── Input area ── */
   .chat-input-area {
     padding: 14px 16px;
+    /* Extra bottom padding so input clears OS nav bars and tablet keyboards */
+    padding-bottom: max(14px, calc(env(safe-area-inset-bottom) + 14px));
     background: var(--bg2);
     border-top: 1px solid var(--border);
     display: flex;
     gap: 10px;
     align-items: flex-end;
+    /* Ensure input area is always reachable on mobile */
+    position: relative;
+    z-index: 10;
   }
 
   .chat-input {
