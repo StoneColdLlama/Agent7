@@ -32,3 +32,6 @@ python-rtmidi               # MIDI playback (requires libasound2-dev on Linux)
 numpy
 pandas
 requests
+
+# ------------- Packages I have added ------------------
+ddgs
