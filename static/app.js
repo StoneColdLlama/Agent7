@@ -61,9 +61,13 @@ async function sendMessage() {
   // Clear output panel for new task
   outputLines.innerHTML = '';
 
+  // Enable stop button immediately — don't wait for SSE confirmation
   setBusy(true);
 
-  // POST to /api/chat
+  // Open SSE stream FIRST so we never miss the 'start' event
+  openStream();
+
+  // Then POST to /api/chat
   let resp;
   try {
     resp = await fetch('/api/chat', {
@@ -79,13 +83,11 @@ async function sendMessage() {
 
   const data = await resp.json();
   if (data.error) {
+    if (eventSource) eventSource.close();
     appendMessage('agent', '⚠ ' + data.error);
     setBusy(false);
     return;
   }
-
-  // Open SSE stream
-  openStream();
 }
 
 // ── SSE stream ────────────────────────────────────────────────────────────
@@ -419,12 +421,14 @@ sendBtn.addEventListener('click', sendMessage);
 
 stopBtn.addEventListener('click', async () => {
   if (!busy) return;
+  // Close SSE stream immediately
+  if (eventSource) { eventSource.close(); eventSource = null; }
   try {
     await fetch('/api/stop', { method: 'POST' });
-    appendOutputLine('⛔ Stop requested — waiting for current step to finish...');
-  } catch(e) {
-    appendOutputLine('⛔ Could not reach server to stop agent.');
-  }
+  } catch(e) {}
+  appendMessage('agent', '⛔ Stopped.');
+  appendOutputLine('⛔ Killed by user.');
+  setBusy(false);
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────

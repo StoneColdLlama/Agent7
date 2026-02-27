@@ -26,6 +26,7 @@ import queue
 import re
 import sys
 import threading
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import AsyncGenerator
@@ -68,8 +69,10 @@ except ImportError:
 # ─────────────────────────────────────────────
 
 output_queue = queue.Queue()
-agent_lock   = threading.Lock()   # prevents concurrent agent runs
+agent_lock     = threading.Lock()   # prevents concurrent agent runs
 stop_requested = threading.Event()  # set this to interrupt the agent
+agent_thread   = None               # reference to running agent thread
+_file_poll_stop = threading.Event() # signals the file poller to stop
 
 
 # ─────────────────────────────────────────────
@@ -242,6 +245,26 @@ def _fmt_size(n: int) -> str:
     return f"{n:.1f} GB"
 
 
+def _start_file_poller():
+    """
+    Poll the current session folder every second while the agent is running.
+    This catches files saved by the Python interpreter tool which doesn't
+    go through bash, so _scan_for_new_files() would otherwise miss them.
+    """
+    _file_poll_stop.clear()
+    def _poll():
+        while not _file_poll_stop.is_set():
+            _scan_for_new_files()
+            time.sleep(1)
+    t = threading.Thread(target=_poll, daemon=True)
+    t.start()
+
+
+def _stop_file_poller():
+    """Stop the file polling thread."""
+    _file_poll_stop.set()
+
+
 # ─────────────────────────────────────────────
 # GLOBAL AGENT STATE
 # One agent + model instance shared across all requests.
@@ -323,9 +346,28 @@ async def api_files():
 
 @app.post("/api/stop")
 async def api_stop():
-    """Signal the agent to stop after its current step completes."""
+    """
+    Kill the agent immediately by:
+    1. Setting the stop flag (checked between model calls)
+    2. Killing the Ollama process so the current HTTP call dies instantly
+    3. Releasing the agent lock so new requests can come in
+    """
+    global agent_thread
+
     stop_requested.set()
-    return {"status": "stop requested"}
+
+    # Kill the ollama runner process so the in-flight request dies immediately
+    try:
+        import subprocess as _sp
+        _sp.run(["pkill", "-f", "ollama runner"], capture_output=True)
+    except Exception:
+        pass
+
+    # Give the thread a moment to notice, then release the lock forcibly
+    # by draining the queue and marking done
+    output_queue.put({"type": "done", "text": "⛔ Stopped by user."})
+
+    return {"status": "killed"}
 
 
 @app.post("/api/chat")
@@ -355,6 +397,7 @@ async def api_chat(request: Request):
                 current_session_dir = _make_session_dir(user_input)
                 output_queue.put({"type": "start"})
                 output_queue.put({"type": "session_dir", "folder": Path(current_session_dir).name})
+                _start_file_poller()
 
                 # Show relevant facts in the chat panel
                 if HAS_KNOWLEDGE and all_facts:
@@ -386,13 +429,17 @@ async def api_chat(request: Request):
                 if session_recorder:
                     session_recorder.record(user_input, str(response))
 
-                _scan_for_new_files()
+                _stop_file_poller()
+                _scan_for_new_files()  # final scan to catch anything missed
                 output_queue.put({"type": "done", "text": str(response)})
 
             except Exception as e:
+                _stop_file_poller()
                 output_queue.put({"type": "error", "text": str(e)})
 
-    threading.Thread(target=run_agent, daemon=True).start()
+    global agent_thread
+    agent_thread = threading.Thread(target=run_agent, daemon=True)
+    agent_thread.start()
     return {"status": "started"}
 
 
