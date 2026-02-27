@@ -148,14 +148,17 @@ class SessionRecorder:
 # Rules injected into every session so the agent always saves files.
 FILE_SAVING_RULES = (
     "FILE SAVING RULES — always follow these:\n"
-    "- When you generate any code (Python, bash, HTML, etc.), ALWAYS save it to a "
-    "file using the python_interpreter tool with open('filename', 'w'). "
-    "Never just print code.\n"
-    "- When asked to create a spreadsheet, use openpyxl to write a .xlsx file.\n"
-    "- When asked to create a Word document, use python-docx to write a .docx file.\n"
-    "- When asked to create a PDF, use fpdf2 or reportlab to write a .pdf file.\n"
+    "- ALWAYS save all generated files into the session output folder. "
+    "The session folder path is provided at the start of each task as SESSION_OUTPUT_DIR.\n"
+    "- When you generate any code (Python, bash, HTML, etc.), ALWAYS save it to "
+    "'SESSION_OUTPUT_DIR/filename'. Never just print code.\n"
+    "- When asked to create a spreadsheet, save as 'SESSION_OUTPUT_DIR/name.xlsx' using openpyxl.\n"
+    "- When asked to create a Word document, save as 'SESSION_OUTPUT_DIR/name.docx' using python-docx.\n"
+    "- When asked to create a PDF, save as 'SESSION_OUTPUT_DIR/name.pdf' using fpdf2 or reportlab.\n"
     "- Always tell the user the full path of every file you save.\n"
-    "- If the user does not specify a filename, invent a sensible one.\n\n"
+    "- If the user does not specify a filename, invent a sensible one.\n"
+    "- Always ensure the output folder exists before saving: "
+    "import os; os.makedirs(SESSION_OUTPUT_DIR, exist_ok=True)\n\n"
 )
 
 

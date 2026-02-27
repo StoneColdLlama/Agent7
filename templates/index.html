@@ -49,7 +49,7 @@
   /* ── Layout ── */
   .app {
     display: grid;
-    grid-template-rows: 48px 1fr 20vh;
+    grid-template-rows: 48px 1fr 1fr;
     grid-template-columns: 1fr;
     height: 100dvh;
     gap: 0;
@@ -517,6 +517,24 @@
 
   .file-item:hover .file-dl { opacity: 1; }
 
+  .folder-heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 4px 4px;
+    font-size: 10px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+    margin-top: 8px;
+    word-break: break-all;
+  }
+
+  .folder-heading:first-child { margin-top: 0; }
+
   .empty-state {
     text-align: center;
     color: var(--text-dim);
@@ -615,6 +633,33 @@
   .session-prompt-item::before { content: "▸ "; color: var(--accent2); }
 
   /* ── Scrollbar global ── */
+  /* ── Stop button ── */
+  .stop-btn {
+    background: transparent;
+    color: var(--red);
+    border: 1px solid var(--red);
+    border-radius: var(--radius);
+    padding: 4px 12px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    cursor: pointer;
+    opacity: 0.3;
+    transition: opacity 0.15s, background 0.15s;
+    letter-spacing: 0.05em;
+  }
+
+  .stop-btn:not(:disabled) {
+    opacity: 1;
+  }
+
+  .stop-btn:not(:disabled):hover {
+    background: rgba(255,68,102,0.15);
+  }
+
+  .stop-btn:disabled {
+    cursor: not-allowed;
+  }
+
   * { scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
 
   /* ── Mobile overrides ── */
@@ -639,6 +684,7 @@
         <span class="status-dot" id="status-dot"></span>
         <span id="status-text">Ready</span>
       </span>
+      <button class="stop-btn" id="stop-btn" disabled title="Stop agent">&#9632; Stop</button>
       <span class="meta-pill">Model: <strong id="model-label">—</strong></span>
       <span class="meta-pill"><strong id="facts-count">0</strong> facts</span>
       <span class="meta-pill"><strong id="sessions-count">0</strong> sessions</span>

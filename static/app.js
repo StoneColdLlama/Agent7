@@ -20,6 +20,7 @@ const modelLabel     = document.getElementById('model-label');
 const factsCount     = document.getElementById('facts-count');
 const sessionsCount  = document.getElementById('sessions-count');
 const filesBadge     = document.getElementById('files-badge');
+const stopBtn        = document.getElementById('stop-btn');
 
 // ── State ─────────────────────────────────────────────────────────────────
 let busy         = false;
@@ -102,6 +103,10 @@ function openStream() {
 
       case 'start':
         switchTab('output');
+        break;
+
+      case 'session_dir':
+        addFolderHeading(item.folder);
         break;
 
       case 'thinking':
@@ -228,6 +233,17 @@ async function loadFiles() {
   } catch(e) {}
 }
 
+function addFolderHeading(folderName) {
+  const empty = filesList.querySelector('.empty-state');
+  if (empty) empty.remove();
+
+  const heading = document.createElement('div');
+  heading.className = 'folder-heading';
+  heading.innerHTML = `<span>📂</span> ${escapeHtml(folderName)}`;
+  filesList.appendChild(heading);
+  switchTab('files');
+}
+
 function addFileEntry(file) {
   // Remove empty state if present
   const empty = filesList.querySelector('.empty-state');
@@ -251,7 +267,7 @@ function renderFiles(files) {
 function buildFileEl(f) {
   const a = document.createElement('a');
   a.className = 'file-item';
-  a.href = '/downloads/' + encodeURIComponent(f.name);
+  a.href = '/downloads/' + (f.folder ? encodeURIComponent(f.folder) + '/' : '') + encodeURIComponent(f.name);
   a.download = f.name;
   a.target = '_blank';
 
@@ -374,8 +390,9 @@ function switchTab(name) {
 // ── Busy state ────────────────────────────────────────────────────────────
 function setBusy(state) {
   busy = state;
-  sendBtn.disabled  = state;
+  sendBtn.disabled   = state;
   chatInput.disabled = state;
+  stopBtn.disabled   = !state;
   typingIndicator.classList.toggle('visible', state);
   statusDot.classList.toggle('busy', state);
   statusText.textContent = state ? 'Working...' : 'Ready';
@@ -399,6 +416,16 @@ chatInput.addEventListener('keydown', (e) => {
 });
 
 sendBtn.addEventListener('click', sendMessage);
+
+stopBtn.addEventListener('click', async () => {
+  if (!busy) return;
+  try {
+    await fetch('/api/stop', { method: 'POST' });
+    appendOutputLine('⛔ Stop requested — waiting for current step to finish...');
+  } catch(e) {
+    appendOutputLine('⛔ Could not reach server to stop agent.');
+  }
+});
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function scrollChat() {

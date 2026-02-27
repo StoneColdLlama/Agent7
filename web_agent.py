@@ -69,6 +69,7 @@ except ImportError:
 
 output_queue = queue.Queue()
 agent_lock   = threading.Lock()   # prevents concurrent agent runs
+stop_requested = threading.Event()  # set this to interrupt the agent
 
 
 # ─────────────────────────────────────────────
@@ -137,10 +138,18 @@ def attach_output_capture():
 # ─────────────────────────────────────────────
 
 class WebThinkingModel(ThinkingModel):
-    """Forwards <think> blocks into the output queue as thinking events."""
+    """Forwards <think> blocks into the output queue as thinking events.
+    Also checks the stop flag before each model call so the agent halts
+    cleanly between steps when the user presses Stop.
+    """
 
     def on_thinking(self, thought: str) -> None:
         output_queue.put({"type": "thinking", "text": thought})
+
+    def __call__(self, messages, **kwargs):
+        if stop_requested.is_set():
+            raise InterruptedError("Stopped by user")
+        return super().__call__(messages, **kwargs)
 
 
 # ─────────────────────────────────────────────
@@ -176,43 +185,53 @@ _known_files:   set  = set()
 _session_files: list = []
 
 
-def _should_ignore(p: Path) -> bool:
-    ignore_exts = {".py", ".json", ".log", ".db", ".pyc"}
-    ignore_dirs = {"__pycache__", ".git", "node_modules", "templates", "static"}
-    return p.suffix in ignore_exts or any(d in p.parts for d in ignore_dirs)
-
 
 def _init_file_tracking():
+    """Record files already in agent_outputs/ before the session starts."""
     global _known_files
-    _known_files = set(
-        str(p) for p in Path(".").rglob("*")
-        if p.is_file() and not _should_ignore(p)
-    )
+    out = Path(OUTPUT_DIR)
+    out.mkdir(exist_ok=True)
+    _known_files = set(str(p) for p in out.rglob('*') if p.is_file())
+
+
+def _make_session_dir(prompt: str) -> str:
+    """
+    Create a timestamped subfolder inside agent_outputs/ for this prompt.
+    Folder name: YYYY-MM-DD_HH-MM-SS_first-few-words
+    Returns the folder path as a string.
+    """
+    import re as _re
+    timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    words = _re.sub(r"[^a-zA-Z0-9 ]", "", prompt).split()[:4]
+    slug  = "_".join(w.lower() for w in words) if words else "task"
+    folder = Path(OUTPUT_DIR) / f"{timestamp}_{slug}"
+    folder.mkdir(parents=True, exist_ok=True)
+    return str(folder)
 
 
 def _scan_for_new_files():
+    """Check agent_outputs/ for new files and register them for the Files tab."""
     global _known_files, _session_files
-    import shutil
-    current = set(
-        str(p) for p in Path(".").rglob("*")
-        if p.is_file() and not _should_ignore(p)
-    )
-    for path_str in current - _known_files:
-        p = Path(path_str)
-        out_path = Path(OUTPUT_DIR) / p.name
-        try:
-            shutil.copy2(p, out_path)
-            entry = {
-                "name": p.name,
-                "path": str(out_path),
-                "size": _fmt_size(p.stat().st_size),
-                "time": datetime.now().strftime("%H:%M:%S"),
-            }
-            _session_files.append(entry)
-            output_queue.put({"type": "file", "file": entry})
-            _known_files.add(path_str)
-        except Exception:
-            pass
+    out = Path(OUTPUT_DIR)
+    out.mkdir(exist_ok=True)
+    for p in out.iterdir():
+        if not p.is_file():
+            continue
+        path_str = str(p)
+        if path_str not in _known_files:
+            try:
+                entry = {
+                    "name": p.name,
+                    "path": path_str,
+                    "size": _fmt_size(p.stat().st_size),
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "folder": Path(current_session_dir).name,
+                }
+                _session_files.append(entry)
+                output_queue.put({"type": "file", "file": entry})
+                _known_files.add(path_str)
+            except Exception:
+                pass
 
 
 def _fmt_size(n: int) -> str:
@@ -302,6 +321,13 @@ async def api_files():
     return {"files": _session_files}
 
 
+@app.post("/api/stop")
+async def api_stop():
+    """Signal the agent to stop after its current step completes."""
+    stop_requested.set()
+    return {"status": "stop requested"}
+
+
 @app.post("/api/chat")
 async def api_chat(request: Request):
     """Receive a user message and start the agent in a background thread."""
@@ -324,7 +350,11 @@ async def api_chat(request: Request):
         global memory_prefix
         with agent_lock:
             try:
+                global current_session_dir
+                stop_requested.clear()
+                current_session_dir = _make_session_dir(user_input)
                 output_queue.put({"type": "start"})
+                output_queue.put({"type": "session_dir", "folder": Path(current_session_dir).name})
 
                 # Show relevant facts in the chat panel
                 if HAS_KNOWLEDGE and all_facts:
@@ -336,14 +366,22 @@ async def api_chat(request: Request):
                         )
                         output_queue.put({"type": "facts_match", "text": facts_text})
 
-                # Build prompt (prepend memory prefix on first message only)
+                # Build prompt — inject session dir so agent saves files there
+                session_instruction = (
+                    f"Save ALL files into this folder: {current_session_dir}\n"
+                    f"Use open(\"{current_session_dir}/filename\", \"w\") to save any file.\n\n"
+                )
                 if memory_prefix:
-                    full_input    = memory_prefix + "\n\nCurrent task: " + user_input
+                    full_input    = memory_prefix + "\n\n" + session_instruction + "Current task: " + user_input
                     memory_prefix = ""
                 else:
-                    full_input = user_input
+                    full_input = session_instruction + user_input
 
-                response = agent_instance.run(full_input)
+                try:
+                    response = agent_instance.run(full_input)
+                except InterruptedError:
+                    output_queue.put({"type": "done", "text": "⛔ Agent stopped by user."})
+                    return
 
                 if session_recorder:
                     session_recorder.record(user_input, str(response))
